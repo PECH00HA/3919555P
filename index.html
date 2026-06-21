@@ -1311,22 +1311,31 @@
         // DASHBOARD
         // ============================================================
         async function loadDashboard() {
-            try {
-                const [pSnap, oSnap, cSnap] = await Promise.all([
-                    db.collection('products').get(),
-                    db.collection('orders').get(),
-                    db.collectionGroup('comments').get()
-                ]);
+            // Each source is fetched independently (not Promise.all) so that if
+            // one query fails — e.g. a Firestore permission error on 'orders' —
+            // it doesn't also wipe out Products/Comments etc. Previously a single
+            // failing query rejected the whole Promise.all and every stat on the
+            // dashboard silently stayed at its default 0, with no visible error.
+            const results = await Promise.allSettled([
+                db.collection('products').get(),
+                db.collection('orders').get(),
+                db.collectionGroup('comments').get()
+            ]);
+            const [pResult, oResult, cResult] = results;
+
+            if (pResult.status === 'fulfilled') {
                 let active = 0;
-                pSnap.forEach(d => { if (d.data().status === 'active') active++; });
+                pResult.value.forEach(d => { if (d.data().status === 'active') active++; });
                 document.getElementById('dashProducts').textContent = active;
                 document.getElementById('productBadge').textContent = active;
+            } else {
+                console.error('Dashboard: products query failed:', pResult.reason);
+                document.getElementById('dashProducts').textContent = '⚠️';
+            }
 
-                let total = oSnap.size,
-                    pending = 0,
-                    shipped = 0,
-                    delivered = 0,
-                    cancelled = 0;
+            if (oResult.status === 'fulfilled') {
+                const oSnap = oResult.value;
+                let total = oSnap.size, pending = 0, shipped = 0, delivered = 0, cancelled = 0;
                 oSnap.forEach(d => {
                     const s = d.data().status || 'pending';
                     if (s === 'pending') pending++;
@@ -1339,13 +1348,12 @@
                 document.getElementById('dashShipped').textContent = shipped;
                 document.getElementById('dashDelivered').textContent = delivered;
                 document.getElementById('dashCancelled').textContent = cancelled;
-                document.getElementById('dashComments').textContent = cSnap.size;
-                document.getElementById('commentBadge').textContent = cSnap.size;
+                document.getElementById('orderBadge').textContent = total;
 
                 let orders = [];
                 oSnap.forEach(d => orders.push({ id: d.id, ...d.data() }));
                 orders.sort((a, b) => { const da = a.createdAt ? a.createdAt.toDate() : new Date(0);
-                    const db = b.createdAt ? b.createdAt.toDate() : new Date(0); return db - da; });
+                    const db_ = b.createdAt ? b.createdAt.toDate() : new Date(0); return db_ - da; });
                 const recent = orders.slice(0, 5);
                 const container = document.getElementById('dashRecent');
                 if (!recent.length) container.innerHTML = '<p class="text-muted">No orders yet.</p>';
@@ -1358,7 +1366,24 @@
                         </div>`
                     ).join('');
                 }
-            } catch (e) { console.error(e); }
+            } else {
+                console.error('Dashboard: orders query failed:', oResult.reason);
+                ['dashOrders', 'dashPending', 'dashShipped', 'dashDelivered', 'dashCancelled'].forEach(id => {
+                    document.getElementById(id).textContent = '⚠️';
+                });
+                const isPermission = (oResult.reason && oResult.reason.code === 'permission-denied');
+                document.getElementById('dashRecent').innerHTML =
+                    `<p class="text-muted" style="color:#e74c3c;">❌ Could not load orders${isPermission ? ' — Firestore security rules are blocking the admin from reading the "orders" collection. Update the rules to allow read access for admin users.' : ': ' + (oResult.reason?.message || 'unknown error')}</p>`;
+                showToast('❌ Orders failed to load — check console / Firestore rules', 'error');
+            }
+
+            if (cResult.status === 'fulfilled') {
+                document.getElementById('dashComments').textContent = cResult.value.size;
+                document.getElementById('commentBadge').textContent = cResult.value.size;
+            } else {
+                console.error('Dashboard: comments query failed:', cResult.reason);
+                document.getElementById('dashComments').textContent = '⚠️';
+            }
         }
 
         // ============================================================
