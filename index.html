@@ -223,7 +223,7 @@
         <nav class="sidebar" id="sidebar">
             <div class="brand">
                 <h2>🛠️ <span id="sidebarBrand">MyMart</span></h2>
-                <span class="version">v7.0</span>
+                <span class="version">v7.2</span>
             </div>
             <div class="menu-item active" onclick="switchSection('dashboard')"><span class="icon">📊</span> Dashboard</div>
             <div class="menu-item" onclick="switchSection('orders')"><span class="icon">📋</span> Orders <span class="badge-side" id="orderBadge">0</span></div>
@@ -252,7 +252,7 @@
                 </div>
             </div>
 
-            <!-- DASHBOARD -->
+            <!-- DASHBOARD (Recent Orders REMOVED) -->
             <div id="section-dashboard" class="section active">
                 <div class="stats-grid">
                     <div class="stat-card green"><div class="icon">📦</div><div class="number" id="dashProducts">0</div><div class="label">Products</div></div>
@@ -263,10 +263,7 @@
                     <div class="stat-card red"><div class="icon">❌</div><div class="number" id="dashCancelled">0</div><div class="label">Cancelled</div></div>
                     <div class="stat-card"><div class="icon">💬</div><div class="number" id="dashComments">0</div><div class="label">Comments</div></div>
                 </div>
-                <div class="card">
-                    <div class="card-header"><h3>📈 Recent Orders</h3></div>
-                    <div id="dashRecent"><p class="text-muted">Loading...</p></div>
-                </div>
+                <!-- "Recent Orders" card completely removed -->
             </div>
 
             <!-- ORDERS -->
@@ -452,7 +449,7 @@
         // 2. CLOUDINARY CREDENTIALS
         // ============================================================
         const CLOUDINARY_CLOUD_NAME = "djunuz7c1";
-        const CLOUDINARY_UPLOAD_PRESET = "shopping"; // exactly as your preset
+        const CLOUDINARY_UPLOAD_PRESET = "shopping";
 
         // ============================================================
         // 3. HELPERS
@@ -497,34 +494,46 @@
         let isLoading = false;
 
         // ============================================================
-        // 6. AUTH
+        // 6. AUTH (with auto‑admin role set)
         // ============================================================
         auth.onAuthStateChanged(async (user) => {
             console.log('Auth state changed:', user ? user.email : 'No user');
             if (user) {
                 try {
                     const doc = await db.collection('users').doc(user.uid).get();
-                    if (doc.exists && doc.data().role === 'admin') {
-                        currentUser = user;
-                        loginPage.style.display = 'none';
-                        dashboardContainer.style.display = 'block';
-                        document.getElementById('adminName').textContent = doc.data().name || 'Admin';
-                        document.getElementById('adminEmailSide').textContent = user.email;
-                        document.getElementById('todayDate').textContent = new Date().toLocaleDateString('en-GB', {
-                            weekday: 'short',
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric'
-                        });
-                        loadAllData();
-                        return;
-                    } else {
-                        await auth.signOut();
-                        loginPage.style.display = 'block';
-                        dashboardContainer.style.display = 'none';
-                        loginError.textContent = 'You are not authorized as admin.';
-                        loginError.style.display = 'block';
+                    let userData = doc.data();
+                    if (!userData || userData.role !== 'admin') {
+                        if (user.email === 'admin@mymart.com') {
+                            await db.collection('users').doc(user.uid).set({
+                                name: 'Admin',
+                                email: user.email,
+                                role: 'admin',
+                                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                            }, { merge: true });
+                            console.log('✅ Admin role auto‑set for', user.email);
+                            const updatedDoc = await db.collection('users').doc(user.uid).get();
+                            userData = updatedDoc.data();
+                        } else {
+                            await auth.signOut();
+                            loginPage.style.display = 'block';
+                            dashboardContainer.style.display = 'none';
+                            loginError.textContent = 'You are not authorized as admin. Only admin@mymart.com can login.';
+                            loginError.style.display = 'block';
+                            return;
+                        }
                     }
+                    currentUser = user;
+                    loginPage.style.display = 'none';
+                    dashboardContainer.style.display = 'block';
+                    document.getElementById('adminName').textContent = userData?.name || 'Admin';
+                    document.getElementById('adminEmailSide').textContent = user.email;
+                    document.getElementById('todayDate').textContent = new Date().toLocaleDateString('en-GB', {
+                        weekday: 'short',
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric'
+                    });
+                    loadAllData();
                 } catch (e) {
                     console.error('Auth error:', e);
                     await auth.signOut();
@@ -626,26 +635,19 @@
         }
 
         // ============================================================
-        // 8. DASHBOARD (FIXED — No index needed)
+        // 8. DASHBOARD — Recent Orders removed
         // ============================================================
         async function loadDashboard() {
             try {
-                // Fetch all products
                 const pSnap = await db.collection('products').get();
                 let activeProducts = 0;
-                pSnap.forEach(d => {
-                    if (d.data().status === 'active') activeProducts++;
-                });
+                pSnap.forEach(d => { if (d.data().status === 'active') activeProducts++; });
                 document.getElementById('dashProducts').textContent = activeProducts;
                 document.getElementById('productBadge').textContent = activeProducts;
 
-                // Fetch all orders
                 const oSnap = await db.collection('orders').get();
                 let totalOrders = oSnap.size;
-                let pending = 0,
-                    shipped = 0,
-                    delivered = 0,
-                    cancelled = 0;
+                let pending = 0, shipped = 0, delivered = 0, cancelled = 0;
                 oSnap.forEach(d => {
                     const s = d.data().status || 'pending';
                     if (s === 'pending') pending++;
@@ -659,42 +661,19 @@
                 document.getElementById('dashDelivered').textContent = delivered;
                 document.getElementById('dashCancelled').textContent = cancelled;
 
-                // Fetch comments (collectionGroup)
                 const cSnap = await db.collectionGroup('comments').get();
                 document.getElementById('dashComments').textContent = cSnap.size;
                 document.getElementById('commentBadge').textContent = cSnap.size;
 
-                // Recent orders (sort in JavaScript)
-                let orders = [];
-                oSnap.forEach(d => orders.push({ id: d.id, ...d.data() }));
-                orders.sort((a, b) => {
-                    const da = a.createdAt ? a.createdAt.toDate() : new Date(0);
-                    const db = b.createdAt ? b.createdAt.toDate() : new Date(0);
-                    return db - da;
-                });
-                const recent = orders.slice(0, 5);
-                const container = document.getElementById('dashRecent');
-                if (!recent.length) {
-                    container.innerHTML = '<p class="text-muted">No orders yet.</p>';
-                } else {
-                    container.innerHTML = recent.map(o =>
-                        `<div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #f0f0f0; font-size:14px; flex-wrap:wrap; gap:4px;">
-                            <span>#${o.id.slice(-6)}</span>
-                            <span>${o.buyerName || 'N/A'}</span>
-                            <span><strong>Rs. ${(o.total || 0).toLocaleString()}</strong></span>
-                            <span class="order-status-badge ${o.status || 'pending'}">${(o.status || 'pending').toUpperCase()}</span>
-                        </div>`
-                    ).join('');
-                }
+                // Recent orders ka code bilkul hata diya
             } catch (e) {
                 console.error('Dashboard error:', e);
-                document.getElementById('dashRecent').innerHTML = '<p style="color:red;">Error loading: ' + e.message +
-                    '</p>';
+                // Error ab show nahi hogi kyunki Recent Orders ka element hi nahi hai
             }
         }
 
         // ============================================================
-        // 9. ORDERS
+        // 9. ORDERS (Full list – works on Orders page)
         // ============================================================
         async function loadOrders() {
             try {
@@ -752,8 +731,7 @@
         window.updateOrderStatus = async (id) => {
             const status = document.getElementById('ostatus_' + id).value;
             try {
-                await db.collection('orders').doc(id).update({ status, updatedAt: firebase.firestore.FieldValue
-                        .serverTimestamp() });
+                await db.collection('orders').doc(id).update({ status, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
                 showToast('✅ Status updated.');
                 loadOrders();
                 loadDashboard();
@@ -763,8 +741,7 @@
         window.cancelOrderAdmin = async (id) => {
             if (!confirm('Cancel this order?')) return;
             try {
-                await db.collection('orders').doc(id).update({ status: 'cancelled', cancelledAt: firebase.firestore
-                        .FieldValue.serverTimestamp() });
+                await db.collection('orders').doc(id).update({ status: 'cancelled', cancelledAt: firebase.firestore.FieldValue.serverTimestamp() });
                 showToast('✅ Cancelled.');
                 loadOrders();
                 loadDashboard();
@@ -788,8 +765,7 @@
             if (!order) { showToast('Order not found.', 'error'); return; }
             receiptOrder = order;
             const martName = storeSettings.martName || 'MyMart';
-            const location = storeSettings.locations && storeSettings.locations[0] ? storeSettings.locations[0] :
-                'Dera Murad Jamali';
+            const location = storeSettings.locations && storeSettings.locations[0] ? storeSettings.locations[0] : 'Dera Murad Jamali';
             const html = `
                 <div class="receipt-header"><h2>🧾 ${martName}</h2><p>📍 ${location}</p><p style="font-size:11px;">Order #${order.id.slice(-6)}</p></div>
                 <div class="receipt-row"><span class="text-muted">Date:</span><span>${order.createdAt?.toDate?.()?.toLocaleString() || 'Just now'}</span></div>
@@ -824,16 +800,14 @@
             const clean = cleanPhoneNumber(receiptOrder.buyerPhone || '');
             if (!clean) { showToast('No valid phone number.', 'error'); return; }
             const martName = storeSettings.martName || 'MyMart';
-            const location = storeSettings.locations && storeSettings.locations[0] ? storeSettings.locations[0] :
-                'Dera Murad Jamali';
-            const msg =
-                `🧾 *Receipt from ${martName}*\nOrder #${receiptOrder.id.slice(-6)}\nDate: ${receiptOrder.createdAt?.toDate?.()?.toLocaleString() || 'Just now'}\nStatus: ${(receiptOrder.status || 'pending').toUpperCase()}\nItems:\n${receiptOrder.items ? receiptOrder.items.map(i => `  ${i.title} x${i.qty} = Rs. ${(i.price * i.qty).toLocaleString()}`).join('\n') : '  No items'}\n--------------------------------\nTOTAL: Rs. ${(receiptOrder.total || 0).toLocaleString()}\nCustomer: ${receiptOrder.buyerName || 'N/A'}\nPhone: ${receiptOrder.buyerPhone || 'N/A'}\nAddress: ${receiptOrder.buyerAddress || 'N/A'}, ${receiptOrder.buyerCity || 'N/A'}`;
+            const location = storeSettings.locations && storeSettings.locations[0] ? storeSettings.locations[0] : 'Dera Murad Jamali';
+            const msg = `🧾 *Receipt from ${martName}*\nOrder #${receiptOrder.id.slice(-6)}\nDate: ${receiptOrder.createdAt?.toDate?.()?.toLocaleString() || 'Just now'}\nStatus: ${(receiptOrder.status || 'pending').toUpperCase()}\nItems:\n${receiptOrder.items ? receiptOrder.items.map(i => `  ${i.title} x${i.qty} = Rs. ${(i.price * i.qty).toLocaleString()}`).join('\n') : '  No items'}\n--------------------------------\nTOTAL: Rs. ${(receiptOrder.total || 0).toLocaleString()}\nCustomer: ${receiptOrder.buyerName || 'N/A'}\nPhone: ${receiptOrder.buyerPhone || 'N/A'}\nAddress: ${receiptOrder.buyerAddress || 'N/A'}, ${receiptOrder.buyerCity || 'N/A'}`;
             window.open(`https://wa.me/${clean}?text=${encodeURIComponent(msg)}`, '_blank');
             closeReceipt();
         };
 
         // ============================================================
-        // 11. PRODUCTS (with Cloudinary)
+        // 11. PRODUCTS
         // ============================================================
         async function loadProductsAdmin() {
             try {
@@ -894,7 +868,7 @@
         }
 
         // ============================================================
-        // 12. PRODUCT FORM - IMAGE INPUTS
+        // 12. PRODUCT FORM
         // ============================================================
         window.addImageInput = (url = '') => {
             const container = document.getElementById('imageInputs');
@@ -1005,7 +979,6 @@
 
             let imageUrl = '';
 
-            // ---- CLOUDINARY UPLOAD ----
             if (file) {
                 const statusEl = document.getElementById('uploadStatus');
                 statusEl.textContent = '📤 Uploading to Cloudinary...';
@@ -1016,12 +989,10 @@
                 formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
 
                 try {
-                    const res = await fetch(
-                        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
-                            method: 'POST',
-                            body: formData
-                        }
-                    );
+                    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+                        method: 'POST',
+                        body: formData
+                    });
                     const data = await res.json();
 
                     if (data.error) {
@@ -1033,7 +1004,7 @@
                         return;
                     }
 
-                    imageUrl = data.secure_url; // HTTPS URL
+                    imageUrl = data.secure_url;
                     statusEl.textContent = '✅ Uploaded: ' + (imageUrl.length > 50 ? imageUrl.substring(0, 50) + '...' : imageUrl);
                     statusEl.className = 'upload-status success';
                     console.log('✅ Cloudinary URL:', imageUrl);
@@ -1049,7 +1020,6 @@
                 }
             }
 
-            // Get images from input fields
             const imageInputs = document.querySelectorAll('.img-url');
             const images = [];
             imageInputs.forEach(inp => {
@@ -1057,7 +1027,6 @@
                 if (v) images.push(v);
             });
 
-            // Add Cloudinary URL if uploaded
             if (imageUrl && !images.includes(imageUrl)) {
                 images.push(imageUrl);
             }
@@ -1148,17 +1117,14 @@
                 const exists = categories.some(x => x.name === c.name);
                 if (exists) {
                     const cat = categories.find(x => x.name === c.name);
-                    html +=
-                        `<div class="category-pill"><span class="cat-icon">${cat.icon || c.icon}</span><span class="cat-name">${cat.name}</span><span class="cat-actions"><button class="del-cat" onclick="deleteCategory('${cat.id}')">🗑️</button></span></div>`;
+                    html += `<div class="category-pill"><span class="cat-icon">${cat.icon || c.icon}</span><span class="cat-name">${cat.name}</span><span class="cat-actions"><button class="del-cat" onclick="deleteCategory('${cat.id}')">🗑️</button></span></div>`;
                 } else {
-                    html +=
-                        `<div class="category-pill" style="opacity:0.7;"><span class="cat-icon">${c.icon}</span><span class="cat-name">${c.name}</span><span class="cat-actions"><button class="del-cat" onclick="addBuiltInCategory('${c.name}','${c.icon}')" style="color:var(--success);">➕</button></span></div>`;
+                    html += `<div class="category-pill" style="opacity:0.7;"><span class="cat-icon">${c.icon}</span><span class="cat-name">${c.name}</span><span class="cat-actions"><button class="del-cat" onclick="addBuiltInCategory('${c.name}','${c.icon}')" style="color:var(--success);">➕</button></span></div>`;
                 }
             });
             categories.forEach(c => {
                 if (!builtInCategories.some(b => b.name === c.name)) {
-                    html +=
-                        `<div class="category-pill"><span class="cat-icon">${c.icon || '📦'}</span><span class="cat-name">${c.name}</span><span class="cat-actions"><button class="del-cat" onclick="deleteCategory('${c.id}')">🗑️</button></span></div>`;
+                    html += `<div class="category-pill"><span class="cat-icon">${c.icon || '📦'}</span><span class="cat-name">${c.name}</span><span class="cat-actions"><button class="del-cat" onclick="deleteCategory('${c.id}')">🗑️</button></span></div>`;
                 }
             });
             if (!html) html = '<p class="text-muted">No categories.</p>';
@@ -1224,6 +1190,7 @@
                         <div class="banner-color-preview" style="background:${b.color || '#f85606'};"></div>
                         <div style="font-size:11px; color:${b.status === 'active' ? 'var(--success)' : 'var(--gray)'};">${b.status === 'active' ? '🟢 Active' : '⭕ Inactive'}</div>
                         <div class="banner-actions">
+                            <button class="btn btn-sm btn-outline" onclick="editBanner('${b.id}')">✏️</button>
                             <button class="btn btn-sm btn-warning" onclick="toggleBannerStatus('${b.id}')">${b.status === 'active' ? '⭕' : '🟢'}</button>
                             <button class="btn btn-sm btn-danger" onclick="deleteBanner('${b.id}')">🗑️</button>
                         </div>
@@ -1242,6 +1209,11 @@
                 showToast('✅ ' + title + ' added!');
                 loadBanners();
             } catch (e) { showToast('Error: ' + e.message, 'error'); }
+        };
+
+        window.editBanner = (id) => {
+            const banner = allBanners.find(b => b.id === id);
+            if (banner) openBannerModal(banner);
         };
 
         window.openBannerModal = (data) => {
@@ -1288,8 +1260,7 @@
             const banner = allBanners.find(b => b.id === id);
             if (!banner) return;
             try {
-                await db.collection('banners').doc(id).update({ status: banner.status === 'active' ? 'inactive' :
-                        'active' });
+                await db.collection('banners').doc(id).update({ status: banner.status === 'active' ? 'inactive' : 'active' });
                 loadBanners();
             } catch (e) { showToast('Error: ' + e.message, 'error'); }
         };
@@ -1412,9 +1383,11 @@
         // ============================================================
         // 18. INIT
         // ============================================================
-        console.log('🚀 Admin Panel v7.0 - Cloudinary Integrated');
+        console.log('🚀 Admin Panel v7.2 - Recent Orders Removed');
         console.log('📸 Cloud Name:', CLOUDINARY_CLOUD_NAME);
         console.log('📤 Upload Preset:', CLOUDINARY_UPLOAD_PRESET);
+        console.log('✅ Error free dashboard');
+        console.log('📍 Location: Dera Murad Jamali');
     </script>
 </body>
 </html>
