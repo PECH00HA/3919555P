@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Admin Panel - MyMart Pro</title>
+    <title>Admin Panel - MyMart</title>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
-        /* ===== BASE ===== */
+        /* ===== ROOT & BASE ===== */
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Roboto, sans-serif; }
         :root { --primary: #f85606; --primary-dark: #d94a00; --primary-light: #fff0e8; --sidebar-bg: #1a1a2e; --sidebar-hover: #2a2a4e; --bg: #f4f6f9; --white: #fff; --shadow: 0 2px 12px rgba(0,0,0,0.06); --radius: 12px; --success: #27ae60; --warning: #f39c12; --danger: #e74c3c; --info: #3498db; --gray: #717171; --light-gray: #f7f8fa; }
         body { background: var(--bg); min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; }
@@ -131,11 +131,11 @@
         .image-input-group input { flex: 1; min-width: 200px; padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; }
         .image-input-group .btn-remove-img { background: var(--danger); color: white; padding: 6px 14px; border-radius: 30px; border: none; font-weight: 600; cursor: pointer; }
 
-        .imagekit-upload-area { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 6px 0; }
-        .imagekit-upload-area input[type="file"] { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 8px; }
-        .imagekit-upload-area .upload-status { font-size: 12px; font-weight: 600; color: var(--gray); }
-        .imagekit-upload-area .upload-status.success { color: var(--success); }
-        .imagekit-upload-area .upload-status.error { color: var(--danger); }
+        .cloudinary-upload-area { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 6px 0; }
+        .cloudinary-upload-area input[type="file"] { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 8px; }
+        .cloudinary-upload-area .upload-status { font-size: 12px; font-weight: 600; color: var(--gray); }
+        .cloudinary-upload-area .upload-status.success { color: var(--success); }
+        .cloudinary-upload-area .upload-status.error { color: var(--danger); }
 
         .form-group { margin-bottom: 14px; }
         .form-group label { display: block; font-weight: 600; font-size: 13px; color: #444; margin-bottom: 4px; }
@@ -203,6 +203,7 @@
 </head>
 <body>
 
+    <!-- ===== LOGIN PAGE ===== -->
     <div id="loginPage" class="login-container">
         <div class="logo">🛠️ <span>Admin</span>Panel</div>
         <div class="subtitle">Manage your store with ease</div>
@@ -215,8 +216,10 @@
         </form>
     </div>
 
+    <!-- ===== DASHBOARD ===== -->
     <div class="dashboard-container" id="dashboardContainer">
 
+        <!-- SIDEBAR -->
         <nav class="sidebar" id="sidebar">
             <div class="brand">
                 <h2>🛠️ <span id="sidebarBrand">MyMart</span></h2>
@@ -236,8 +239,10 @@
             </div>
         </nav>
 
+        <!-- MAIN CONTENT -->
         <div class="main-content">
 
+            <!-- TOP BAR -->
             <div class="top-bar">
                 <div class="page-title" id="pageTitle">📊 Dashboard <small>Overview</small></div>
                 <div class="top-actions">
@@ -247,6 +252,7 @@
                 </div>
             </div>
 
+            <!-- DASHBOARD -->
             <div id="section-dashboard" class="section active">
                 <div class="stats-grid">
                     <div class="stat-card green"><div class="icon">📦</div><div class="number" id="dashProducts">0</div><div class="label">Products</div></div>
@@ -263,6 +269,7 @@
                 </div>
             </div>
 
+            <!-- ORDERS -->
             <div id="section-orders" class="section">
                 <div class="card">
                     <div class="card-header">
@@ -279,6 +286,7 @@
                 </div>
             </div>
 
+            <!-- PRODUCTS -->
             <div id="section-products" class="section">
                 <div class="card">
                     <div class="card-header">
@@ -289,6 +297,7 @@
                 </div>
             </div>
 
+            <!-- CATEGORIES -->
             <div id="section-categories" class="section">
                 <div class="card">
                     <div class="card-header"><h3>📂 Categories</h3></div>
@@ -301,6 +310,7 @@
                 </div>
             </div>
 
+            <!-- BANNERS -->
             <div id="section-banners" class="section">
                 <div class="card">
                     <div class="card-header">
@@ -318,6 +328,7 @@
                 </div>
             </div>
 
+            <!-- COMMENTS -->
             <div id="section-comments" class="section">
                 <div class="card">
                     <div class="card-header"><h3>💬 Manage Comments</h3></div>
@@ -325,6 +336,7 @@
                 </div>
             </div>
 
+            <!-- SETTINGS -->
             <div id="section-settings" class="section">
                 <div class="card">
                     <div class="card-header"><h3>⚙️ Store Settings</h3></div>
@@ -345,6 +357,7 @@
         </div>
     </div>
 
+    <!-- ===== PRODUCT MODAL (with Cloudinary Upload) ===== -->
     <div id="productModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; justify-content:center; align-items:center; padding:20px; overflow-y:auto;">
         <div style="background:white; border-radius:var(--radius); padding:28px 32px; max-width:650px; width:100%; max-height:90vh; overflow-y:auto;">
             <h3 id="productModalTitle">➕ Add Product</h3>
@@ -356,13 +369,14 @@
                 <div class="form-group"><label>Location</label><input type="text" id="pLocation" value="Dera Murad Jamali" /></div>
                 <div class="form-group"><label>Category</label><select id="pCategory"></select></div>
 
+                <!-- ===== CLOUDINARY UPLOAD ===== -->
                 <div class="form-group">
-                    <label>📸 Upload Image (ImageKit)</label>
-                    <div class="imagekit-upload-area">
+                    <label>📸 Upload Image (Cloudinary)</label>
+                    <div class="cloudinary-upload-area">
                         <input type="file" id="pImage" accept="image/*" />
                         <span class="upload-status" id="uploadStatus">No file selected</span>
                     </div>
-                    <small class="text-muted">Select an image, it will be uploaded to ImageKit automatically.</small>
+                    <small class="text-muted">Select an image, it will be uploaded to Cloudinary automatically.</small>
                 </div>
 
                 <div class="form-group">
@@ -384,6 +398,7 @@
         </div>
     </div>
 
+    <!-- ===== BANNER MODAL ===== -->
     <div id="bannerModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; justify-content:center; align-items:center; padding:20px;">
         <div style="background:white; border-radius:var(--radius); padding:28px 32px; max-width:500px; width:100%;">
             <h3 id="bannerModalTitle">🖼️ Add Banner</h3>
@@ -402,6 +417,7 @@
         </div>
     </div>
 
+    <!-- ===== RECEIPT MODAL ===== -->
     <div id="receiptModal" class="receipt-modal">
         <div class="receipt-content">
             <span class="close-receipt" onclick="closeReceipt()">&times;</span>
@@ -433,11 +449,10 @@
         const db = firebase.firestore();
 
         // ============================================================
-        // 2. IMAGEKIT CREDENTIALS
+        // 2. CLOUDINARY CREDENTIALS
         // ============================================================
-        const IMAGEKIT_URL_ENDPOINT = "https://ik.imagekit.io/3bu9qggce";
-        const IMAGEKIT_PUBLIC_KEY = "public_oWUKDzM0y+vx5yKCHzrl2iWBG68=";
-        const IMAGEKIT_PRIVATE_KEY = "private_IKalrqCZsnwlBVbGCLDqP02WW+0=";
+        const CLOUDINARY_CLOUD_NAME = "djunuz7c1";
+        const CLOUDINARY_UPLOAD_PRESET = "shopping"; // exactly as your preset
 
         // ============================================================
         // 3. HELPERS
@@ -611,16 +626,20 @@
         }
 
         // ============================================================
-        // 8. DASHBOARD (FIXED)
+        // 8. DASHBOARD (FIXED — No index needed)
         // ============================================================
         async function loadDashboard() {
             try {
+                // Fetch all products
                 const pSnap = await db.collection('products').get();
                 let activeProducts = 0;
-                pSnap.forEach(d => { if (d.data().status === 'active') activeProducts++; });
+                pSnap.forEach(d => {
+                    if (d.data().status === 'active') activeProducts++;
+                });
                 document.getElementById('dashProducts').textContent = activeProducts;
                 document.getElementById('productBadge').textContent = activeProducts;
 
+                // Fetch all orders
                 const oSnap = await db.collection('orders').get();
                 let totalOrders = oSnap.size;
                 let pending = 0,
@@ -640,10 +659,12 @@
                 document.getElementById('dashDelivered').textContent = delivered;
                 document.getElementById('dashCancelled').textContent = cancelled;
 
+                // Fetch comments (collectionGroup)
                 const cSnap = await db.collectionGroup('comments').get();
                 document.getElementById('dashComments').textContent = cSnap.size;
                 document.getElementById('commentBadge').textContent = cSnap.size;
 
+                // Recent orders (sort in JavaScript)
                 let orders = [];
                 oSnap.forEach(d => orders.push({ id: d.id, ...d.data() }));
                 orders.sort((a, b) => {
@@ -812,7 +833,7 @@
         };
 
         // ============================================================
-        // 11. PRODUCTS
+        // 11. PRODUCTS (with Cloudinary)
         // ============================================================
         async function loadProductsAdmin() {
             try {
@@ -831,6 +852,7 @@
                 });
                 document.getElementById('productBadge').textContent = allProducts.length;
                 renderProductsAdmin(allProducts);
+                console.log('📦 Products loaded:', allProducts.length);
             } catch (e) { console.error('Products error:', e); }
         }
 
@@ -872,7 +894,7 @@
         }
 
         // ============================================================
-        // 12. PRODUCT FORM
+        // 12. PRODUCT FORM - IMAGE INPUTS
         // ============================================================
         window.addImageInput = (url = '') => {
             const container = document.getElementById('imageInputs');
@@ -963,7 +985,7 @@
         }
 
         // ============================================================
-        // 13. SAVE PRODUCT (ImageKit Upload - FIXED)
+        // 13. SAVE PRODUCT (CLOUDINARY)
         // ============================================================
         window.saveProduct = async (e) => {
             e.preventDefault();
@@ -983,55 +1005,43 @@
 
             let imageUrl = '';
 
-            // ---- IMAGEKIT UPLOAD (FIXED) ----
+            // ---- CLOUDINARY UPLOAD ----
             if (file) {
                 const statusEl = document.getElementById('uploadStatus');
-                statusEl.textContent = '📤 Uploading to ImageKit...';
+                statusEl.textContent = '📤 Uploading to Cloudinary...';
                 statusEl.className = 'upload-status';
 
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+
                 try {
-                    const formData = new FormData();
-                    formData.append('file', file);
-                    formData.append('fileName', file.name);
-                    formData.append('folder', '/products');
-                    formData.append('useUniqueFileName', 'true');
-
-                    const auth = btoa(IMAGEKIT_PUBLIC_KEY + ':' + IMAGEKIT_PRIVATE_KEY);
-                    const res = await fetch('https://upload.imagekit.io/api/v1/files/upload', {
-                        method: 'POST',
-                        headers: { 'Authorization': 'Basic ' + auth },
-                        body: formData
-                    });
-
+                    const res = await fetch(
+                        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+                            method: 'POST',
+                            body: formData
+                        }
+                    );
                     const data = await res.json();
 
-                    // Check for error or missing URL
-                    if (data.error || !data.url) {
-                        const errorMsg = data.error || 'Unknown error';
-                        showToast('ImageKit Error: ' + errorMsg, 'error');
-                        statusEl.textContent = '❌ Upload failed: ' + errorMsg;
+                    if (data.error) {
+                        showToast('Cloudinary Error: ' + data.error.message, 'error');
+                        statusEl.textContent = '❌ Upload failed: ' + data.error.message;
                         statusEl.className = 'upload-status error';
                         submitBtn.disabled = false;
                         submitBtn.textContent = '💾 Save';
                         return;
                     }
 
-                    imageUrl = data.url;
-
-                    // Ensure imageUrl is not undefined before substring
-                    if (imageUrl) {
-                        statusEl.textContent = '✅ Uploaded: ' + (imageUrl.length > 50 ? imageUrl.substring(0, 50) +
-                            '...' : imageUrl);
-                    } else {
-                        statusEl.textContent = '✅ Uploaded successfully';
-                    }
+                    imageUrl = data.secure_url; // HTTPS URL
+                    statusEl.textContent = '✅ Uploaded: ' + (imageUrl.length > 50 ? imageUrl.substring(0, 50) + '...' : imageUrl);
                     statusEl.className = 'upload-status success';
-                    console.log('✅ ImageKit URL:', imageUrl);
-                    showToast('✅ Image uploaded to ImageKit!');
+                    console.log('✅ Cloudinary URL:', imageUrl);
+                    showToast('✅ Image uploaded to Cloudinary!');
 
                 } catch (err) {
                     showToast('Image upload failed: ' + err.message, 'error');
-                    statusEl.textContent = '❌ Upload error';
+                    statusEl.textContent = '❌ ' + err.message;
                     statusEl.className = 'upload-status error';
                     submitBtn.disabled = false;
                     submitBtn.textContent = '💾 Save';
@@ -1047,10 +1057,9 @@
                 if (v) images.push(v);
             });
 
-            // Add ImageKit URL to images array
+            // Add Cloudinary URL if uploaded
             if (imageUrl && !images.includes(imageUrl)) {
                 images.push(imageUrl);
-                console.log('✅ Added ImageKit URL to images array:', imageUrl);
             }
 
             const data = {
@@ -1403,10 +1412,9 @@
         // ============================================================
         // 18. INIT
         // ============================================================
-        console.log('🚀 Admin Panel v7.0 - ImageKit Integrated (Fixed)');
-        console.log('📸 ImageKit URL Endpoint:', IMAGEKIT_URL_ENDPOINT);
-        console.log('✅ Dashboard Fixed - No index needed');
-        console.log('📍 Location: Dera Murad Jamali');
+        console.log('🚀 Admin Panel v7.0 - Cloudinary Integrated');
+        console.log('📸 Cloud Name:', CLOUDINARY_CLOUD_NAME);
+        console.log('📤 Upload Preset:', CLOUDINARY_UPLOAD_PRESET);
     </script>
 </body>
 </html>
