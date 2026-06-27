@@ -1177,6 +1177,22 @@
 
     <div id="toast" class="toast"></div>
 
+    <!-- LOGIN SCREEN -->
+    <div id="loginScreen" style="display:none; position:fixed; inset:0; background:var(--sidebar-bg); z-index:10000; justify-content:center; align-items:center; padding:20px;">
+        <div style="background:white; border-radius:var(--radius); padding:32px 30px; max-width:380px; width:100%; box-shadow:0 12px 40px rgba(0,0,0,0.3);">
+            <div style="text-align:center; margin-bottom:22px;">
+                <h2 style="font-size:24px; font-weight:800; color:#1a1a2e;">🛠️ MyMart <span style="color:var(--primary);">Admin</span></h2>
+                <p style="font-size:13px; color:var(--gray); margin-top:4px;">Sign in to continue</p>
+            </div>
+            <form id="loginForm" onsubmit="adminLogin(event)">
+                <div class="form-group"><label>📧 Email</label><input type="email" id="loginEmail" placeholder="admin@mymart.com" required /></div>
+                <div class="form-group"><label>🔒 Password</label><input type="password" id="loginPassword" placeholder="••••••••" required /></div>
+                <button type="submit" class="btn btn-primary" style="width:100%; margin-top:8px; justify-content:center;" id="loginBtn">🔓 Login</button>
+                <div id="loginMsg" style="margin-top:12px; font-size:13px; font-weight:600; color:var(--danger); text-align:center;"></div>
+            </form>
+        </div>
+    </div>
+
     <script>
         // ============================================================
         // FIREBASE CONFIG
@@ -1228,16 +1244,49 @@
         // ============================================================
         // AUTH
         // ============================================================
+        function showLoginScreen(msg) {
+            const ls = document.getElementById('loginScreen');
+            if (ls) ls.style.display = 'flex';
+            const lm = document.getElementById('loginMsg');
+            if (lm) lm.textContent = msg || '';
+        }
+
+        function hideLoginScreen() {
+            const ls = document.getElementById('loginScreen');
+            if (ls) ls.style.display = 'none';
+        }
+
+        window.adminLogin = async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('loginBtn');
+            const msg = document.getElementById('loginMsg');
+            const email = document.getElementById('loginEmail').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            msg.textContent = '';
+            btn.disabled = true;
+            btn.textContent = '⏳ Signing in...';
+            try {
+                await auth.signInWithEmailAndPassword(email, password);
+                // onAuthStateChanged will handle the rest
+            } catch (err) {
+                msg.textContent = err.message || 'Login failed.';
+                btn.disabled = false;
+                btn.textContent = '🔓 Login';
+            }
+        };
+
         auth.onAuthStateChanged(async (user) => {
-            if (!user) { window.location.href = 'index.html'; return; }
+            if (!user) { showLoginScreen(); return; }
             try {
                 const doc = await db.collection('users').doc(user.uid).get();
                 if (!doc.exists || doc.data().role !== 'admin') {
                     await auth.signOut();
-                    alert('Not authorized.');
-                    window.location.href = 'index.html';
+                    showLoginScreen('Not authorized. Use an admin account.');
                     return;
                 }
+                hideLoginScreen();
+                const loginBtn = document.getElementById('loginBtn');
+                if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = '🔓 Login'; }
                 currentUser = user;
                 document.getElementById('adminName').textContent = doc.data().name || 'Admin';
                 document.getElementById('adminEmailSide').textContent = user.email;
@@ -1250,7 +1299,7 @@
         });
 
         window.logout = async () => { if (confirm('Logout?')) { await auth.signOut();
-                window.location.href = 'index.html'; } };
+                showLoginScreen('You have been logged out.'); } };
 
         function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
 
@@ -1259,27 +1308,12 @@
         // doesn't fire correctly). Runs on load, resize, and orientation change.
         function applyLayoutMode() {
             const isMobile = window.innerWidth <= 768;
-            // Skip if nothing actually changed — writing the class on every
-            // resize tick (even to the same value) was causing a feedback loop
-            // on some devices: toggling it shows/hides a scrollbar, which
-            // fires another resize event, which runs this again, forever —
-            // pegging the CPU and freezing the tab.
-            if (document.body.classList.contains('mobile-layout') === isMobile) return;
             document.body.classList.toggle('mobile-layout', isMobile);
             if (!isMobile) document.getElementById('sidebar').classList.remove('open');
         }
         applyLayoutMode();
-
-        // Resize/orientation events can fire dozens of times per second
-        // (window drag, mobile keyboard opening, etc). Debounce so the check
-        // only actually runs once the burst of events settles down.
-        let layoutCheckTimer = null;
-        function scheduleLayoutCheck() {
-            clearTimeout(layoutCheckTimer);
-            layoutCheckTimer = setTimeout(applyLayoutMode, 200);
-        }
-        window.addEventListener('resize', scheduleLayoutCheck);
-        window.addEventListener('orientationchange', scheduleLayoutCheck);
+        window.addEventListener('resize', applyLayoutMode);
+        window.addEventListener('orientationchange', applyLayoutMode);
 
         // Tapping outside the open sidebar (on mobile) closes it again.
         document.addEventListener('click', (e) => {
@@ -1326,31 +1360,22 @@
         // DASHBOARD
         // ============================================================
         async function loadDashboard() {
-            // Each source is fetched independently (not Promise.all) so that if
-            // one query fails — e.g. a Firestore permission error on 'orders' —
-            // it doesn't also wipe out Products/Comments etc. Previously a single
-            // failing query rejected the whole Promise.all and every stat on the
-            // dashboard silently stayed at its default 0, with no visible error.
-            const results = await Promise.allSettled([
-                db.collection('products').get(),
-                db.collection('orders').get(),
-                db.collectionGroup('comments').get()
-            ]);
-            const [pResult, oResult, cResult] = results;
-
-            if (pResult.status === 'fulfilled') {
+            try {
+                const [pSnap, oSnap, cSnap] = await Promise.all([
+                    db.collection('products').get(),
+                    db.collection('orders').get(),
+                    db.collectionGroup('comments').get()
+                ]);
                 let active = 0;
-                pResult.value.forEach(d => { if (d.data().status === 'active') active++; });
+                pSnap.forEach(d => { if (d.data().status === 'active') active++; });
                 document.getElementById('dashProducts').textContent = active;
                 document.getElementById('productBadge').textContent = active;
-            } else {
-                console.error('Dashboard: products query failed:', pResult.reason);
-                document.getElementById('dashProducts').textContent = '⚠️';
-            }
 
-            if (oResult.status === 'fulfilled') {
-                const oSnap = oResult.value;
-                let total = oSnap.size, pending = 0, shipped = 0, delivered = 0, cancelled = 0;
+                let total = oSnap.size,
+                    pending = 0,
+                    shipped = 0,
+                    delivered = 0,
+                    cancelled = 0;
                 oSnap.forEach(d => {
                     const s = d.data().status || 'pending';
                     if (s === 'pending') pending++;
@@ -1363,12 +1388,13 @@
                 document.getElementById('dashShipped').textContent = shipped;
                 document.getElementById('dashDelivered').textContent = delivered;
                 document.getElementById('dashCancelled').textContent = cancelled;
-                document.getElementById('orderBadge').textContent = total;
+                document.getElementById('dashComments').textContent = cSnap.size;
+                document.getElementById('commentBadge').textContent = cSnap.size;
 
                 let orders = [];
                 oSnap.forEach(d => orders.push({ id: d.id, ...d.data() }));
                 orders.sort((a, b) => { const da = a.createdAt ? a.createdAt.toDate() : new Date(0);
-                    const db_ = b.createdAt ? b.createdAt.toDate() : new Date(0); return db_ - da; });
+                    const db = b.createdAt ? b.createdAt.toDate() : new Date(0); return db - da; });
                 const recent = orders.slice(0, 5);
                 const container = document.getElementById('dashRecent');
                 if (!recent.length) container.innerHTML = '<p class="text-muted">No orders yet.</p>';
@@ -1381,24 +1407,7 @@
                         </div>`
                     ).join('');
                 }
-            } else {
-                console.error('Dashboard: orders query failed:', oResult.reason);
-                ['dashOrders', 'dashPending', 'dashShipped', 'dashDelivered', 'dashCancelled'].forEach(id => {
-                    document.getElementById(id).textContent = '⚠️';
-                });
-                const isPermission = (oResult.reason && oResult.reason.code === 'permission-denied');
-                document.getElementById('dashRecent').innerHTML =
-                    `<p class="text-muted" style="color:#e74c3c;">❌ Could not load orders${isPermission ? ' — Firestore security rules are blocking the admin from reading the "orders" collection. Update the rules to allow read access for admin users.' : ': ' + (oResult.reason?.message || 'unknown error')}</p>`;
-                showToast('❌ Orders failed to load — check console / Firestore rules', 'error');
-            }
-
-            if (cResult.status === 'fulfilled') {
-                document.getElementById('dashComments').textContent = cResult.value.size;
-                document.getElementById('commentBadge').textContent = cResult.value.size;
-            } else {
-                console.error('Dashboard: comments query failed:', cResult.reason);
-                document.getElementById('dashComments').textContent = '⚠️';
-            }
+            } catch (e) { console.error(e); }
         }
 
         // ============================================================
